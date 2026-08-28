@@ -12,7 +12,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 from .types import TopicModelOutput
 
 COHERENCE_TOP_N = 10
-VENDI_Q_VALUES = {"0.5": 0.5, "1": 1.0, "2": 2.0, "10": 10.0, "inf": "inf"}
 
 WordEmbedder = Callable[[List[str]], np.ndarray]
 
@@ -131,12 +130,13 @@ def evaluate(
     output: TopicModelOutput,
     docs: Sequence[str],
     analyzer: Callable[[str], List[str]],
-    use_word_embeddings: bool = False,
     embed_words: Optional[WordEmbedder] = None,
 ) -> Dict[str, float]:
-    """Compute every metric for one topic model output.
+    """Compute the reported metrics for one topic model output.
 
-    `coh` is included only when `embed_words` is given.
+    `coh` is included only when `embed_words` is given. `vendi_diversity`,
+    `mean_intertopic_cosine` and other top-n cuts of `word_uniqueness` are not
+    computed here; call them directly.
     """
     tokenized_docs = tokenize(docs, analyzer)
 
@@ -148,12 +148,7 @@ def evaluate(
         "coherence_cv": coherence_cv(output, tokenized_docs),
         "coherence_npmi": coherence_npmi(output, tokenized_docs),
         "word_uniqueness_10": word_uniqueness(output, top_n=10),
-        "word_uniqueness_25": word_uniqueness(output, top_n=25),
-        "mean_intertopic_cosine": mean_intertopic_cosine(output, use_word_embeddings),
     }
-
-    for label, q in VENDI_Q_VALUES.items():
-        metrics[f"vendi_diversity_{label}"] = vendi_diversity(output, q, use_word_embeddings)
 
     if embed_words is not None:
         metrics["coh"] = topic_word_coherence(output, embed_words)

@@ -155,14 +155,18 @@ def test_evaluate_returns_the_expected_keys():
         "coherence_cv",
         "coherence_npmi",
         "word_uniqueness_10",
-        "word_uniqueness_25",
-        "mean_intertopic_cosine",
-        "vendi_diversity_0.5",
-        "vendi_diversity_1",
-        "vendi_diversity_2",
-        "vendi_diversity_10",
-        "vendi_diversity_inf",
     }
+
+
+def test_evaluate_omits_the_opt_in_metrics():
+    docs = ["car engine wheel", "god faith church", "disk drive memory"] * 4
+    output = make_output(doc_topics=[0, 1, 2] * 4, topic_embeddings=np.eye(3))
+
+    metrics = evaluate(output, docs, analyzer=ANALYZER)
+
+    assert not any(k.startswith("vendi_diversity") for k in metrics)
+    assert "mean_intertopic_cosine" not in metrics
+    assert "word_uniqueness_25" not in metrics
 
 
 def test_evaluate_adds_coh_only_when_an_embedder_is_given():
