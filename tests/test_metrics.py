@@ -4,14 +4,14 @@ import numpy as np
 import pytest
 from sklearn.feature_extraction.text import CountVectorizer
 
-from vendi_clustering.eval.metrics import (
+from vendi_clustering.metrics.scores import (
     evaluate,
     tokenize,
     topic_word_coherence,
     vendi_diversity,
     word_uniqueness,
 )
-from vendi_clustering.eval.types import TopicModelOutput
+from vendi_clustering.metrics.types import TopicModelOutput
 
 ANALYZER = CountVectorizer().build_analyzer()
 
