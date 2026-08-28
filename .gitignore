@@ -37,3 +37,6 @@ logs/
 .vscode/
 .idea/
 .DS_Store
+
+# Scratch verification config
+experiments/configs/verify_p1.yaml

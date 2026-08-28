@@ -1,0 +1,39 @@
+# Vendi Topic Reduction Experiment Configuration
+# This file defines parameters for running experimental protocols
+
+# Dataset configuration
+dataset:
+  name: "20newsgroups"
+  n_samples: null # null = use all samples, or specify a number like 1000
+
+# Protocol to run
+protocol: "p4" # Options: "p1", "p2", etc.
+
+# Protocol 1: Fixed-k Comparison parameters
+protocol_1:
+  target_k_values: [25, 50, 100]
+  seeds: [42, 43, 44]
+
+# Protocol 3: VTR vs. Direct HDBSCAN Tuning parameters
+protocol_3:
+  base_min_cluster_size: 15
+  direct_configs:
+    - { min_cluster_size: 20, selection_method: "eom" }
+    - { min_cluster_size: 30, selection_method: "eom" }
+    - { min_cluster_size: 20, selection_method: "leaf" }
+    - { min_cluster_size: 30, selection_method: "leaf" }
+    - { min_cluster_size: 50, selection_method: "eom" }
+    - { min_cluster_size: 50, selection_method: "leaf" }
+  seed: 42
+
+# Protocol 4: Robustness & Sensitivity Analysis parameters
+protocol_4:
+  target_k_values: [10, 25, 50]
+  min_cluster_sizes: [15, 20, 25]
+  seed: 42
+
+# Output configuration
+output:
+  dir: "experiments/results"
+  save_metadata: true
+  filename: p4_20ng

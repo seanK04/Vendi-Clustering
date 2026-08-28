@@ -1,0 +1,18 @@
+# q-sensitivity ablation. Reproduces the appendix table.
+
+dataset:
+  name: "20newsgroups"
+  n_samples: null
+
+protocol: "p6"
+
+protocol_6:
+  q_values: [0.1, 0.5, 1.0, 1.5, 2.0, 5.0, .inf]
+  target_k_values: [25, 50, 100]
+  seeds: [42, 43, 44]
+  min_cluster_size: 15
+
+output:
+  dir: "experiments/results/p6_q_ablation"
+  save_metadata: true
+  filename: p6_20NG

@@ -1,0 +1,16 @@
+dataset:
+  name: "20newsgroups"
+  n_samples: null
+
+protocol: "p5"
+
+protocol_5:
+  min_cluster_size: 15
+  seed: 42
+  use_ctfidf: true
+  stop_at_k: 1
+
+output:
+  dir: "experiments/results/p5_trajectory"
+  save_metadata: true
+  filename: trajectory.csv

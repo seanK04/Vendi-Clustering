@@ -1,0 +1,26 @@
+# Protocol 2: LLM-Assisted Topic Reduction Configuration
+# Compares VTR (from P1 results) against iterative LLM-based merging
+
+# Dataset configuration
+dataset:
+  name: "agnews"
+  n_samples: null # null = use all samples
+
+# Protocol to run
+protocol: "p2"
+
+# Protocol 2: LLM-Assisted Reduction parameters
+protocol_2:
+  target_k_values: [25, 50, 100]
+  seeds: [42, 43, 44]
+  min_cluster_size: 100
+  llm_model_name: "gpt-4o-mini"
+  top_keywords: 10
+
+# Output configuration
+output:
+  dir: "experiments/results/p2_llm_comparison"
+  save_metadata: true
+  filename: p2_AG
+# Note: llm_client is passed programmatically in run_p2_with_openai.py
+# since it cannot be serialized in YAML
