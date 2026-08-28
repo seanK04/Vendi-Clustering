@@ -21,7 +21,6 @@ def from_bertopic(
     topic_model: Any,
     method: str = "bertopic",
     top_n: int = TOP_WORDS,
-    word_embeddings: Optional[np.ndarray] = None,
     metadata: Optional[Dict[str, Any]] = None,
 ) -> TopicModelOutput:
     """Extract a TopicModelOutput from a fitted BERTopic model."""
@@ -43,6 +42,5 @@ def from_bertopic(
         topic_words=topic_words,
         doc_topics=list(topic_model.topics_),
         topic_embeddings=embeddings,
-        word_embeddings=word_embeddings,
         metadata=metadata or {},
     )

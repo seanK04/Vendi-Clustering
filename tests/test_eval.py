@@ -6,7 +6,6 @@ from sklearn.feature_extraction.text import CountVectorizer
 
 from vendi_clustering.eval.metrics import (
     evaluate,
-    mean_intertopic_cosine,
     tokenize,
     topic_word_coherence,
     vendi_diversity,
@@ -64,7 +63,6 @@ def test_rejects_embeddings_with_wrong_row_count():
 def test_json_round_trip_preserves_everything(tmp_path):
     output = make_output(
         topic_embeddings=np.arange(12, dtype=float).reshape(3, 4),
-        word_embeddings=np.ones((3, 4)),
         metadata={"seed": 42},
     )
     reloaded = TopicModelOutput.load(output.save(tmp_path / "out.json"))
@@ -75,13 +73,11 @@ def test_json_round_trip_preserves_everything(tmp_path):
     assert reloaded.doc_topics == output.doc_topics
     assert reloaded.metadata == {"seed": 42}
     np.testing.assert_allclose(reloaded.topic_embeddings, output.topic_embeddings)
-    np.testing.assert_allclose(reloaded.word_embeddings, output.word_embeddings)
 
 
 def test_json_round_trip_keeps_none_embeddings(tmp_path):
     reloaded = TopicModelOutput.load(make_output().save(tmp_path / "out.json"))
     assert reloaded.topic_embeddings is None
-    assert reloaded.word_embeddings is None
 
 
 def test_word_uniqueness_all_distinct():
@@ -91,20 +87,6 @@ def test_word_uniqueness_all_distinct():
 def test_word_uniqueness_all_shared():
     output = make_output(topic_words=[["a", "b"], ["a", "b"], ["a", "b"]])
     assert word_uniqueness(output, top_n=2) == pytest.approx(2 / 6)
-
-
-def test_intertopic_distance_is_one_for_orthogonal_topics():
-    output = make_output(topic_embeddings=np.eye(3))
-    assert mean_intertopic_cosine(output) == pytest.approx(1.0)
-
-
-def test_intertopic_distance_is_zero_for_identical_topics():
-    output = make_output(topic_embeddings=np.ones((3, 4)))
-    assert mean_intertopic_cosine(output) == pytest.approx(0.0)
-
-
-def test_intertopic_distance_needs_embeddings():
-    assert mean_intertopic_cosine(make_output()) == 0.0
 
 
 @pytest.mark.parametrize("q", [0.5, 1.0, 2.0, "inf"])
@@ -119,10 +101,8 @@ def test_vendi_diversity_collapses_for_identical_topics(q):
     assert vendi_diversity(output, q=q) == pytest.approx(1.0, rel=1e-5)
 
 
-def test_vendi_diversity_uses_word_embeddings_when_asked():
-    output = make_output(topic_embeddings=np.ones((3, 4)), word_embeddings=np.eye(3))
-    assert vendi_diversity(output, q=1.0) == pytest.approx(1.0, rel=1e-5)
-    assert vendi_diversity(output, q=1.0, use_word_embeddings=True) == pytest.approx(3.0, rel=1e-6)
+def test_vendi_diversity_needs_embeddings():
+    assert vendi_diversity(make_output(), q=2.0) == 0.0
 
 
 def test_topic_word_coherence_is_one_for_identical_word_vectors():
@@ -165,7 +145,6 @@ def test_evaluate_omits_the_opt_in_metrics():
     metrics = evaluate(output, docs, analyzer=ANALYZER)
 
     assert not any(k.startswith("vendi_diversity") for k in metrics)
-    assert "mean_intertopic_cosine" not in metrics
     assert "word_uniqueness_25" not in metrics
 
 

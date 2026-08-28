@@ -72,35 +72,17 @@ def word_uniqueness(output: TopicModelOutput, top_n: int = 10) -> float:
     return len(set(all_words)) / len(all_words)
 
 
-def _topic_vectors(output: TopicModelOutput, use_word_embeddings: bool) -> Optional[np.ndarray]:
-    return output.word_embeddings if use_word_embeddings else output.topic_embeddings
-
-
 def _mean_upper_triangle(matrix: np.ndarray) -> Optional[float]:
     similarity = cosine_similarity(matrix)
     upper = similarity[np.triu_indices(similarity.shape[0], k=1)]
     return float(upper.mean()) if upper.size else None
 
 
-def mean_intertopic_cosine(output: TopicModelOutput, use_word_embeddings: bool = False) -> float:
-    """One minus the mean pairwise cosine similarity between topic vectors."""
-    vectors = _topic_vectors(output, use_word_embeddings)
-    if vectors is None or len(vectors) < 2:
-        return 0.0
-
-    mean = _mean_upper_triangle(vectors)
-    return 0.0 if mean is None else 1.0 - mean
-
-
-def vendi_diversity(
-    output: TopicModelOutput,
-    q: Union[float, str] = 1.0,
-    use_word_embeddings: bool = False,
-) -> float:
+def vendi_diversity(output: TopicModelOutput, q: Union[float, str] = 2.0) -> float:
     """Vendi Score of the topic set: the effective number of distinct topics."""
     from vendi_score import vendi
 
-    vectors = _topic_vectors(output, use_word_embeddings)
+    vectors = output.topic_embeddings
     if vectors is None or len(vectors) < 2:
         return 0.0
 
@@ -134,9 +116,8 @@ def evaluate(
 ) -> Dict[str, float]:
     """Compute the reported metrics for one topic model output.
 
-    `coh` is included only when `embed_words` is given. `vendi_diversity`,
-    `mean_intertopic_cosine` and other top-n cuts of `word_uniqueness` are not
-    computed here; call them directly.
+    `coh` is included only when `embed_words` is given. `vendi_diversity` is not
+    computed here; call it directly.
     """
     tokenized_docs = tokenize(docs, analyzer)
 

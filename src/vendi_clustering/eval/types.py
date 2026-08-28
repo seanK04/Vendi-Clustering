@@ -20,7 +20,6 @@ class TopicModelOutput:
         topic_words: Top words per topic, most important first.
         doc_topics: Topic assignment per document; -1 marks an outlier.
         topic_embeddings: Native topic vectors, e.g. BERTopic document centroids.
-        word_embeddings: Topic vectors pooled from top-word embeddings.
         metadata: Free-form run details (dataset, seed, target_k, timings).
     """
 
@@ -29,7 +28,6 @@ class TopicModelOutput:
     topic_words: List[List[str]]
     doc_topics: List[int]
     topic_embeddings: Optional[np.ndarray] = None
-    word_embeddings: Optional[np.ndarray] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
@@ -39,7 +37,7 @@ class TopicModelOutput:
             )
         if OUTLIER_TOPIC in self.topic_ids:
             raise ValueError("topic_ids must exclude the outlier topic")
-        for name in ("topic_embeddings", "word_embeddings"):
+        for name in ("topic_embeddings",):
             matrix = getattr(self, name)
             if matrix is not None:
                 matrix = np.asarray(matrix)
@@ -68,7 +66,6 @@ class TopicModelOutput:
             "topic_words": [list(words) for words in self.topic_words],
             "doc_topics": [int(t) for t in self.doc_topics],
             "topic_embeddings": _matrix_to_list(self.topic_embeddings),
-            "word_embeddings": _matrix_to_list(self.word_embeddings),
             "metadata": self.metadata,
         }
 
@@ -80,7 +77,6 @@ class TopicModelOutput:
             topic_words=payload["topic_words"],
             doc_topics=payload["doc_topics"],
             topic_embeddings=_list_to_matrix(payload.get("topic_embeddings")),
-            word_embeddings=_list_to_matrix(payload.get("word_embeddings")),
             metadata=payload.get("metadata", {}),
         )
 
