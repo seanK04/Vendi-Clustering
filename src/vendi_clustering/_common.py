@@ -12,9 +12,8 @@ def prepare_inputs(
 ) -> Tuple[np.ndarray, list, Dict[int, float]]:
     """Validate and canonicalise clustering inputs.
 
-    Rows of `embeddings` correspond positionally to `topic_ids`. Both classes
-    operate on topics sorted by ascending topic ID, which is what makes the
-    surviving topic of each group the lowest ID in it; callers rely on that.
+    Rows of `embeddings` correspond positionally to `topic_ids`. Topics are
+    returned sorted by ascending topic ID.
 i 
     Returns:
         (embeddings sorted by topic ID, sorted topic IDs, a private size copy)
@@ -40,7 +39,7 @@ i
     active_topics = [topic_ids[i] for i in order]
     sorted_embeddings = embeddings[order]
 
-    # Copy: the merge loop writes accumulated sizes and must not touch the caller's dict.
+    # The merge loop writes accumulated sizes into this dict.
     sizes = {t: float(topic_sizes[t]) for t in active_topics}
 
     return sorted_embeddings, active_topics, sizes

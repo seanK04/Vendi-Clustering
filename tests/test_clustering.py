@@ -23,12 +23,7 @@ def partition(mapping):
 
 
 def test_closed_form_matches_actual_merged_matrix():
-    """The vectorised T_new must equal ||K_merged||_F^2 for every candidate pair.
-
-    This is the oracle for the algebraic shortcut: the fast path scores candidate
-    merges without materialising them, so the prediction has to match the matrix
-    that would actually result.
-    """
+    """The vectorised T_new must equal ||K_merged||_F^2 for every candidate pair."""
     embeddings, _, sizes_by_id = make_case(seed=1, m=7, dim=5)
     K = cosine_similarity(embeddings)
     n_vec = np.array([float(sizes_by_id[t]) for t in range(7)])
@@ -145,8 +140,7 @@ def test_rejects_out_of_range_target_k(target_k):
         VendiClustering().cluster(embeddings, topic_ids, topic_sizes, target_k=target_k)
 
 
-# Pinned on a fixed seed. Guards against silent changes to merge selection:
-# any edit that moves these groupings will move published numbers too.
+# Pinned on a fixed seed; guards against silent changes to merge selection.
 GOLDEN_Q2 = {
     0: 0, 1: 1, 2: 2, 3: 1, 4: 1, 5: 1, 6: 0, 7: 7,
     8: 1, 9: 9, 10: 9, 11: 1, 12: 9, 13: 1, 14: 9,

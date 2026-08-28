@@ -1,11 +1,7 @@
-"""Vendi Clustering with algebraic acceleration.
+"""Vendi Clustering at order q=2, with algebraic acceleration.
 
-Implements Vendi Clustering at order q=2, which merges topics so as to preserve
-the Vendi_2 diversity of the topic set, as described in "Vendi Clustering for
-Topic Modeling". For q != 2 see `clustering_general`.
-
-Adapted from the paper's BERTopic fork. The merge mathematics are unchanged; the
-input handling was reworked into an explicit (embeddings, topic_ids) contract.
+Merges topics so as to preserve the Vendi_2 diversity of the topic set.
+For q != 2 see `clustering_general`.
 """
 
 from typing import Dict, Mapping, Optional, Sequence
@@ -19,9 +15,8 @@ from ._common import prepare_inputs, progress_bar, resolve_target_k
 class VendiClustering:
     """Vendi Clustering at q=2 with lookahead algebraic acceleration.
 
-    Exploits the Frobenius-norm identity VS_2(K) = m^2 / ||K||_F^2, which makes the
-    score of every candidate merge computable in closed form. That turns each
-    iteration into a handful of BLAS calls instead of m^2 eigendecompositions.
+    Uses the Frobenius-norm identity VS_2(K) = m^2 / ||K||_F^2 to score every
+    candidate merge in closed form.
     """
 
     def __init__(self, verbose: bool = False):

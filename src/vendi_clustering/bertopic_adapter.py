@@ -1,8 +1,8 @@
 """Apply Vendi Clustering to a fitted BERTopic model.
 
-Built entirely on BERTopic's public API: it reads the public fitted attributes
-(`topic_embeddings_`, `c_tf_idf_`, `topic_sizes_`) and applies the result through
-`merge_topics`. 
+Reads `topic_embeddings_`, `c_tf_idf_` and `topic_sizes_`, and applies the result
+through `merge_topics`.
+
 Requires the optional dependency: `pip install vendi-clustering[bertopic]`.
 """
 
@@ -64,10 +64,9 @@ def select_topic_representation(
 def mapping_to_merge_groups(mapping: Dict[int, int]) -> List[List[int]]:
     """Turn a topic->representative mapping into `merge_topics` groups.
 
-    Each group is sorted ascending so that `merge_topics`, which keeps
-    `topic_group[0]`, retains the same representative the clustering chose: the
-    lowest topic ID in the group. Singleton groups are dropped, since
-    `merge_topics` leaves untouched topics alone.
+    Groups are sorted ascending: `merge_topics` keeps `topic_group[0]`, which must
+    be the lowest topic ID to match the representative the clustering chose.
+    Singleton groups are dropped.
     """
     groups: Dict[int, List[int]] = {}
     for topic, representative in mapping.items():

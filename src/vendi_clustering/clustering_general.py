@@ -1,11 +1,7 @@
-"""Vendi Clustering for arbitrary order q.
+"""Vendi Clustering for arbitrary order q, via eigendecomposition.
 
-Computes the Vendi Score of order q by eigendecomposition, supporting any q > 0
-including q=1 (Shannon entropy) and q=inf. For q=2 prefer `VendiClustering` in
-`clustering.py`, which uses the O(1) Frobenius-norm shortcut.
-
-Adapted from the paper's BERTopic fork. The merge mathematics are unchanged; the
-input handling was reworked into an explicit (embeddings, topic_ids) contract.
+Supports any q > 0, including q=1 (Shannon entropy) and q=inf.
+For q=2 prefer `VendiClustering` in `clustering.py`.
 """
 
 from typing import Dict, Mapping, Optional, Sequence
@@ -21,8 +17,7 @@ class GeneralVendiClustering:
     """Vendi Clustering for arbitrary order q.
 
     Evaluates each candidate merge by building the merged similarity matrix and
-    taking its eigenvalues. Total complexity is O(m^5), tractable for the topic
-    counts this operates on (m <= 200).
+    taking its eigenvalues. Total complexity is O(m^5).
     """
 
     def __init__(self, q: float = 1.0, verbose: bool = False):

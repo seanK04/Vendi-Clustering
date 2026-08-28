@@ -18,10 +18,8 @@ def test_groups_are_sorted_ascending():
 
 
 def test_representative_survives_the_handoff_to_merge_topics():
-    """The invariant the equivalence gate rests on.
-
-    Clustering collapses each group onto its lowest topic ID; BERTopic keeps
-    `topic_group[0]`. Passing groups ascending is what makes those agree.
+    """Clustering collapses each group onto its lowest topic ID; BERTopic keeps
+    `topic_group[0]`. Passing groups ascending makes those agree.
     """
     mapping = {5: 1, 1: 1, 9: 1, 3: 3, 7: 3, 4: 4}
 
