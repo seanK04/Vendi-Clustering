@@ -159,7 +159,7 @@ def run_protocol_3(
         if len(set(vtr_model.topics_) - {-1}) > direct_k:
             vtr_reduction_start = time.time()
             apply_reduction(
-                vtr_model, dataset.docs, nr_topics=direct_k, method="vendi", use_ctfidf=False
+                vtr_model, dataset.docs, nr_topics=direct_k, method="vendi", use_ctfidf=True
             )
             vtr_reduction_time = time.time() - vtr_reduction_start
             vtr_k = len(set(vtr_model.topics_) - {-1})
