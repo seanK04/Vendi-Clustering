@@ -1,0 +1,19 @@
+# Baselines environment (conda env `topmost`), Python 3.10.21.
+# Fits the native topic-model baselines and writes TopicModelOutput JSON.
+# It never imports vendi_clustering; only JSON crosses into the scoring env.
+# Scoring happens in `vendi-clustering` — see requirements-repro.txt.
+
+topmost==1.0.2
+fastopic==1.0.1
+
+# fastopic is a transitive dep of topmost with an open lower bound
+# (`fastopic>=1.0.0`), so it is pinned explicitly here.
+
+sentence-transformers==5.2.0
+torch==2.9.1
+torchvision==0.24.1
+
+gensim==4.4.0
+scikit-learn==1.7.2
+numpy==2.2.6
+scipy==1.15.3
