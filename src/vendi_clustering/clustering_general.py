@@ -17,7 +17,11 @@ class GeneralVendiClustering:
     """Vendi Clustering for arbitrary order q.
 
     Evaluates each candidate merge by building the merged similarity matrix and
-    taking its eigenvalues. Total complexity is O(m^5).
+    taking its eigenvalues. Scoring the O(m^2) candidate pairs costs O(m^3) each
+    for the eigendecomposition, so a single merge step is O(m^5) and reducing to
+    a fixed k is O(m^6). Tractable at the topic counts this runs on (m <= 200),
+    where the measured exponent is milder than the bound because the
+    eigendecomposition has not reached its cubic regime at that size.
     """
 
     def __init__(self, q: float = 1.0, verbose: bool = False):
