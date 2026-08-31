@@ -18,6 +18,7 @@ import numpy as np
 
 TOP_WORDS = 25
 EMBED_MODEL = "all-MiniLM-L6-v2"
+GLOVE_MODEL = "glove-wiki-gigaword-200"
 REPO = Path(__file__).resolve().parents[2]
 EMBED_DIR = REPO / "experiments" / "results" / "embeddings"
 
@@ -69,6 +70,11 @@ def seed_everything(seed):
     torch.manual_seed(seed)
 
 
+def _argmax_topics(theta):
+    """Hard document assignment; not used by any reported metric."""
+    return np.asarray(theta).argmax(axis=1).astype(int).tolist()
+
+
 def fit_fastopic(docs, k, seed, embeddings, preprocess, args):
     """FASTopic via the raw class, not topmost's FASTopicTrainer.
 
@@ -101,7 +107,7 @@ def fit_fastopic(docs, k, seed, embeddings, preprocess, args):
         "preset_doc_embeddings": True,
         "doc_embed_model": EMBED_MODEL,
     }
-    return top_words, theta, config
+    return top_words, _argmax_topics(theta), config
 
 
 class _Dataset:
@@ -149,24 +155,39 @@ def fit_lda(docs, k, seed, embeddings, preprocess, args):
         "minimum_probability": 0.01,
         "docs_below_minimum_probability": unassigned,
     }
-    return top_words, theta, config
+    return top_words, _argmax_topics(theta), config
 
 
-class _PresetEmbedder:
-    """Stands in for RawDataset's sentence encoder, returning the cached vectors.
+def _combined_tm_full(vocab_size, contextual_embed_size, num_topics, en_units=200, dropout=0.4):
+    """CombinedTM with the bag-of-words concatenation restored.
 
-    RawDataset takes any non-str `doc_embed_model` as its embedder verbatim, and
-    encodes the raw docs (basic_dataset.py:75) rather than the preprocessed ones,
-    so the cached vectors line up index for index.
+    topmost ships the concatenation commented out (CombinedTM.py:23 and :54), so
+    its inference network reads only the contextual embedding — which is
+    ZeroShotTM's defining property, not CombinedTM's. Restoring both lines
+    reproduces the reference architecture of Bianchi et al. (2021): the embedding
+    is projected to |V| (fc_contextual, matching the reference's adapt_bert) and
+    concatenated with the BoW, giving a 2|V|-wide encoder input. The BoW remains
+    the decoder's reconstruction target either way.
     """
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from topmost import CombinedTM
 
-    def __init__(self, embeddings):
-        self.embeddings = embeddings
+    class CombinedTMFull(CombinedTM):
+        def __init__(self):
+            super().__init__(vocab_size, contextual_embed_size, num_topics, en_units, dropout)
+            self.fc11 = nn.Linear(vocab_size + vocab_size, en_units)
 
-    def encode(self, docs):
-        if len(docs) != len(self.embeddings):
-            raise ValueError(f"{len(docs)} docs but {len(self.embeddings)} cached embeddings")
-        return self.embeddings
+        def get_theta(self, x):
+            contextual = self.fc_contextual(x[:, self.vocab_size:])
+            combined = torch.cat((x[:, : self.vocab_size], contextual), dim=1)
+            mu, logvar = self.encode(combined)
+            z = self.reparameterize(mu, logvar)
+            theta = self.theta_drop(F.softmax(z, dim=1))
+            return (theta, mu, logvar) if self.training else theta
+
+    return CombinedTMFull()
 
 
 def fit_ctm(docs, k, seed, embeddings, preprocess, args):
@@ -175,22 +196,33 @@ def fit_ctm(docs, k, seed, embeddings, preprocess, args):
     The model consumes [bow || contextual_embed] concatenated, which is what
     RawDataset(contextual_embed=True) builds. Seeding waits until after the
     dataset is constructed: preprocessing resets numpy's global seed, and the
-    model's parameters are not allocated until CombinedTM() is called.
+    model's parameters are not allocated until the model is constructed.
     """
-    from topmost import BasicTrainer, CombinedTM, RawDataset
+    import torch
+    from torch.utils.data import DataLoader
+    from topmost import BasicTrainer
 
-    dataset = RawDataset(
-        docs,
-        preprocess,
-        batch_size=args.batch_size,
-        device="cpu",
-        contextual_embed=True,
-        doc_embed_model=_PresetEmbedder(embeddings),
-        verbose=False,
+    # RawDataset would build this same tensor, but via an int64 dense array and a
+    # float64 concatenation -- ~3.9GB of simultaneous intermediates at this scale.
+    # Filling a float32 array in chunks is bit-identical (counts are exact in
+    # float32, the embeddings already are) and peaks under 1GB.
+    rst = preprocess.preprocess(docs)
+    bow, vocab = rst["train_bow"], rst["vocab"]
+    n_docs, vocab_size, dim = bow.shape[0], len(vocab), embeddings.shape[1]
+    train = np.empty((n_docs, vocab_size + dim), dtype=np.float32)
+    for i in range(0, n_docs, 2000):
+        train[i : i + 2000, :vocab_size] = bow[i : i + 2000].toarray()
+    train[:, vocab_size:] = embeddings
+
+    dataset = _Dataset(None, vocab)
+    dataset.train_data = torch.from_numpy(train)
+    dataset.contextual_embed_size = dim
+    dataset.train_dataloader = DataLoader(
+        dataset.train_data, batch_size=args.batch_size, shuffle=True
     )
     seed_everything(seed)
 
-    model = CombinedTM(
+    model = _combined_tm_full(
         vocab_size=dataset.vocab_size,
         contextual_embed_size=dataset.contextual_embed_size,
         num_topics=k,
@@ -214,18 +246,112 @@ def fit_ctm(docs, k, seed, embeddings, preprocess, args):
         "doc_embed_model": EMBED_MODEL,
         "en_units": 200,
         "dropout": 0.4,
+        "bow_concatenation_restored": True,
     }
-    return top_words, theta, config
+    return top_words, _argmax_topics(theta), config
 
 
-FITTERS = {"fastopic": fit_fastopic, "lda": fit_lda, "ctm": fit_ctm}
+def _glove_embeddings(vocab, model=GLOVE_MODEL):
+    """Pretrained word vectors for `vocab`, zero rows where a word is absent.
+
+    Reimplements topmost's make_word_embeddings. Its own version is unusable
+    here: RawDataset discards the result, it returns a sparse matrix that
+    ETM's torch.from_numpy rejects, and it tests membership against a
+    400k-entry list rather than the index.
+    """
+    import gensim.downloader
+
+    vectors = gensim.downloader.load(model)
+    matrix = np.zeros((len(vocab), vectors.vectors.shape[1]), dtype=np.float32)
+    found = 0
+    for i, word in enumerate(vocab):
+        if word in vectors.key_to_index:
+            matrix[i] = vectors[word]
+            found += 1
+    return matrix, found
 
 
-def to_output(method, top_words, theta, n_docs, metadata):
+def fit_etm(docs, k, seed, embeddings, preprocess, args):
+    """ETM with pre-fitted, frozen GloVe word embeddings.
+
+    contextual_embed=False is required: ETM's encoder is Linear(vocab_size, ...)
+    and get_theta row-normalizes the whole input, so concatenated document
+    embeddings would break both the shape and the normalizer. Its defaults
+    (pretrained_WE=None, train_WE=False) are randomly initialized weights that
+    never train, so both are set explicitly.
+    """
+    from topmost import ETM, BasicTrainer, RawDataset
+
+    import torch
+    from torch.utils.data import DataLoader
+
+    dataset = RawDataset(
+        docs,
+        preprocess,
+        batch_size=args.batch_size,
+        device="cpu",
+        contextual_embed=False,
+        verbose=False,
+    )
+
+    # ETM row-normalizes its input (ETM.py:52), so a document with no
+    # in-vocabulary tokens gives 0/0 and NaN spreads to every parameter. Train
+    # on the non-empty rows and mark the rest as unassigned. min_term does not
+    # prevent this: it filters before the vocabulary is applied.
+    keep = (dataset.train_data.sum(dim=1) > 0).numpy()
+    dataset.train_data = dataset.train_data[torch.from_numpy(keep)]
+    dataset.train_dataloader = DataLoader(
+        dataset.train_data, batch_size=args.batch_size, shuffle=True
+    )
+
+    word_embeddings, found = _glove_embeddings(dataset.vocab)
+    seed_everything(seed)
+
+    model = ETM(
+        vocab_size=dataset.vocab_size,
+        embed_size=word_embeddings.shape[1],
+        num_topics=k,
+        en_units=args.en_units,
+        dropout=args.etm_dropout,
+        pretrained_WE=word_embeddings,
+        train_WE=False,
+    )
+    trainer = BasicTrainer(
+        model,
+        dataset,
+        num_top_words=TOP_WORDS,
+        epochs=args.epochs,
+        learning_rate=args.learning_rate,
+        batch_size=args.batch_size,
+        verbose=False,
+    )
+    top_words, theta = trainer.train()
+
+    config = {
+        "epochs": args.epochs,
+        "learning_rate": args.learning_rate,
+        "batch_size": args.batch_size,
+        "en_units": args.en_units,
+        "dropout": args.etm_dropout,
+        "embed_size": int(word_embeddings.shape[1]),
+        "pretrained_WE": GLOVE_MODEL,
+        "train_WE": False,
+        "glove_coverage": found / len(dataset.vocab),
+        "docs_dropped_empty_bow": int((~keep).sum()),
+    }
+    doc_topics = np.full(len(docs), -1, dtype=int)
+    doc_topics[keep] = np.asarray(theta).argmax(axis=1)
+    return top_words, doc_topics.tolist(), config
+
+
+FITTERS = {"fastopic": fit_fastopic, "lda": fit_lda, "ctm": fit_ctm, "etm": fit_etm}
+
+
+def to_output(method, top_words, doc_topics, n_docs, metadata):
     """Build the TopicModelOutput dict, enforcing the contract before writing."""
     topic_words = [w.split() if isinstance(w, str) else list(w) for w in top_words]
     topic_ids = list(range(len(topic_words)))
-    doc_topics = np.asarray(theta).argmax(axis=1).astype(int).tolist()
+    doc_topics = list(doc_topics)
 
     if -1 in topic_ids:
         raise ValueError("topic_ids must exclude the outlier topic")
@@ -258,7 +384,9 @@ def main():
     parser.add_argument("--epochs", type=int, default=200)
     parser.add_argument("--learning-rate", type=float, default=0.002)
     parser.add_argument("--passes", type=int, default=20, help="LDA corpus sweeps")
-    parser.add_argument("--batch-size", type=int, default=200, help="CTM minibatch")
+    parser.add_argument("--batch-size", type=int, default=200, help="CTM/ETM minibatch")
+    parser.add_argument("--en-units", type=int, default=800, help="ETM encoder width")
+    parser.add_argument("--etm-dropout", type=float, default=0.0)
     parser.add_argument("--out", type=Path, default=None)
     args = parser.parse_args()
 
@@ -268,7 +396,7 @@ def main():
 
     print(f"{args.method} k={args.k} seed={args.seed} on {len(docs)} docs")
     start = time.time()
-    top_words, theta, config = FITTERS[args.method](
+    top_words, doc_topics, config = FITTERS[args.method](
         docs, args.k, args.seed, embeddings, preprocess, args
     )
     fit_time = time.time() - start
@@ -282,7 +410,7 @@ def main():
         "vocab_size": args.vocab_size,
         **config,
     }
-    output = to_output(args.method, top_words, theta, len(docs), metadata)
+    output = to_output(args.method, top_words, doc_topics, len(docs), metadata)
 
     out = args.out or (
         REPO / "experiments" / "results" / "baselines"
