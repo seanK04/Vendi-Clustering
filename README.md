@@ -66,15 +66,25 @@ topic vectors). This is what lets the same metric code compare against native to
 models.
 
 ```python
+from sentence_transformers import SentenceTransformer
+
 from vendi_clustering.metrics.adapters import bertopic_analyzer, from_bertopic
 from vendi_clustering.metrics.scores import evaluate
 
+coh = SentenceTransformer("paraphrase-MiniLM-L6-v2")
+
 output = from_bertopic(topic_model, method="vendi")
-scores = evaluate(output, docs, analyzer=bertopic_analyzer(topic_model))
+scores = evaluate(
+    output,
+    docs,
+    analyzer=bertopic_analyzer(topic_model),
+    embed_words=coh.encode,
+)
 ```
 
 The analyzer is passed explicitly so every method being compared is scored against
-one tokenization of the reference corpus.
+one tokenization of the reference corpus. `embed_words` is optional; embedding
+coherence (`coh`) is computed only when it is given.
 
 ## Reproducing the paper
 
@@ -83,8 +93,42 @@ Protocols are driven by YAML configs:
 
 ```bash
 pip install -r requirements-repro.txt
-python experiments/vendi_experiments.py --config experiments/configs/p1_20NG.yaml
+PYTHONPATH=src python experiments/vendi_experiments.py --config experiments/configs/p1_20NG.yaml
 ```
+
+`requirements-repro.txt` pins the dependencies but not this package, so `src` goes on
+`PYTHONPATH` rather than installing over the pinned environment.
+
+### Baseline comparison
+
+`experiments/baselines/` compares Vendi-reduced BERTopic against LDA, CombinedTM,
+ETM and FASTopic fitted natively at the same *k*. Those models come from TopMost,
+which brings its own torch stack, so they run in a **separate environment** and
+communicate only through a plain `TopicModelOutput` JSON:
+
+```
+topmost env (LDA, CombinedTM, ETM, FASTopic) ──> *.json ──┐
+                                                          ├──> dev env: evaluate()
+BERTopic + Vendi Clustering ──────────────────────────────┘
+```
+
+Scoring happens once, in the dev environment, so every method shares one analyzer,
+one reference corpus and one COH encoder.
+
+```bash
+# baselines environment -- imports nothing from this repo
+pip install -r requirements-baselines.txt
+python experiments/baselines/run_baseline.py --method fastopic --k 50 --seed 42
+
+# dev environment
+PYTHONPATH=src:. python experiments/baselines/run_vendi.py --k 50 --seed 42
+PYTHONPATH=src:. python experiments/baselines/score_all.py   # a whole (k, seed) grid
+```
+
+`run_baseline.py` departs from TopMost in two places, both explained in the source:
+FASTopic is driven through the `fastopic` package directly rather than TopMost's
+trainer, and CombinedTM's bag-of-words concatenation — commented out upstream — is
+re-enabled.
 
 ## Citation
 

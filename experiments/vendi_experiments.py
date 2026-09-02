@@ -5,7 +5,7 @@ This script orchestrates all experimental protocols using YAML configuration fil
 
 Usage:
     # Run with custom config
-    python experiments/vendi_experiments.py --config experiments/configs/quick_test.yaml
+    PYTHONPATH=src python experiments/vendi_experiments.py --config experiments/configs/quick_test.yaml
 """
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -216,10 +216,10 @@ def parse_args():
         epilog="""
 Examples:
   # Run with default config
-  python experiments/vendi_experiments.py
+  PYTHONPATH=src python experiments/vendi_experiments.py
   
   # Run with custom config
-  python experiments/vendi_experiments.py --config my_experiment.yaml
+  PYTHONPATH=src python experiments/vendi_experiments.py --config my_experiment.yaml
     """
     )
     
